@@ -34,7 +34,7 @@ public class BloomFilterInit  {
     private RedissonClient redissonClient;
 
     private static final String BLOOM_SHOP = "bloom:shop";
-    //这个postconstruct注解可以确保布隆过滤器在 Bean 初始化完成后、服务启动前执行，保证请求进来时布隆已经准备好了。
+    //这个postconstruct注解可以确保布隆过滤器初始化方法在 Bean 前执行
     @PostConstruct
     public void initBloomFilter() {
         RBloomFilter<Long> bloomFilter = redissonClient.getBloomFilter(BLOOM_SHOP);
@@ -45,7 +45,6 @@ public class BloomFilterInit  {
 //        List<Long> ids = shopMapper.selectAllShopIds();
 ////流式处理，由于布隆过滤器一次只能接受一个id，所以不能把ids批量一次性加到里面去，只能通过流式处理一个个加进去
 //        ids.stream().forEach(bloomFilter::add);
-
         //最优雅的写法，直接用mp中service继承iservice接口后获得的方法来操作数据库,.map()不是转表，而是流里的转换数据方法
         shopService.list().stream()
                 .map(Shop::getId)

@@ -12,6 +12,13 @@ spring:
     username: hmall
     password: 123321
     virtual-host: /
+    listener:
+      simple:
+        acknowledge-mode: manual #开起手动消息确认模式
+        retry:
+          enabled: true #开启重试机制
+          max-attempts: 3 #最多重试三次
+          initial-interval: 1000 #初始间隔1秒
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/heimadianping?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true&useSSL=true

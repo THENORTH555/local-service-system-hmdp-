@@ -10,6 +10,7 @@ import com.hmdp.service.IFollowService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.UserHolder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
  * @author 虎哥
  * @since 2021-12-22
  */
+@Slf4j
 @Service
 public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> implements IFollowService {
 @Resource
@@ -45,22 +47,40 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
             follow.setFollowUserId(followUserId);
             boolean isSuccess = save(follow);
             if (isSuccess) {
+                //用重试方法包裹redis更新
+                retryupdateredis(()->{
                 //保存成功，更新redis中的数据
                 String followsKey = "follows:" + userId;
-                stringRedisTemplate.opsForZSet().add(followsKey, followUserId.toString(), System.currentTimeMillis());
+                stringRedisTemplate.opsForZSet().add(followsKey, followUserId.toString(), System.currentTimeMillis());}
+            ,3);
             }
         }
         else {
-            //传进来的是取关请求,从数据库中删除对应用户id的关注
+            //传进来的是取关请求,从数据库中删除对应用户id的关注，QueryWrapper<Follow>()为mp提供的查询条件构造器
             boolean issuccess =  remove(new QueryWrapper<Follow>().eq("user_id", userId).eq("follow_user_id", followUserId));
             //更新redis中的数据
             if (issuccess){
-                stringRedisTemplate.opsForZSet().remove("follows:" + userId, followUserId.toString());
-            }
+                //用重试方法尝试三次移出，避免出现数据库没有redis中还有的情况
+                retryupdateredis(()->{stringRedisTemplate.opsForZSet().remove("follows:" + userId, followUserId.toString());
+                },3);}
         }
         return Result.ok();
     }
+    //重试方法,runnable为函数式接口,其代表一段可执行的方法。
+    public void retryupdateredis(Runnable options,int retryTimes){
+for (int i = 0; i < retryTimes; i++){
+    try {
+        options.run();
+        return;
+    } catch (Exception e) {
+       log.warn("Redis更新失败，第{}次重试", i + 1, e);
+       if (i == retryTimes - 1){
+           log.error("Redis更新失败，最后一次重试失败",e);
+       }
+    }
 
+}
+    }
     @Override
     public Result isFollow(Long followUserId) {
         Long userId = UserHolder.getUser().getId();
@@ -81,6 +101,7 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
         //求交集
         String key1 = "follows:" + userId;
         String key2 = "follows:" + id;
+        //opsForZSet().intersect(key1, key2)求两个key下的元素的交集
         Set<String> intersect = stringRedisTemplate.opsForZSet().intersect(key1, key2);
         if (intersect == null || intersect.isEmpty()){
             //没有共同关注

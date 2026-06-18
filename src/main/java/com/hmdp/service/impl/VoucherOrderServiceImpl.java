@@ -337,8 +337,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             log.error("请勿重复下单");
 
         }
-
-
         //扣减库存，并对voucher进行更新操作
         SeckillVoucher seckillVoucher = seckillVoucherService.getById(voucherId);
         seckillVoucher.setStock(seckillVoucher.getStock() - 1);
@@ -352,8 +350,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             log.error("库存不足");
             return;
         }
-
-
         save(voucherOrder);
 
     }

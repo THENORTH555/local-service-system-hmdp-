@@ -75,20 +75,21 @@ public class CacheClient {
         return r;
     }
     //解决缓存击穿的方法
-    private static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);//创建线程池对象并赋值给CACHE_REBUILD_EXECUTOR常量
+    private static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);//JDK原生自带创建线程池对象并赋值给CACHE_REBUILD_EXECUTOR常量
     public <R, ID> R quaryWithLogicalExpire(String keyprifix,String lockprifix, Class<R> type, ID id,Function<ID, R> dbFallback, Long time, TimeUnit timeUnit) {
         String key = keyprifix + id;
         String json = stringRedisTemplate.opsForValue().get(key);
         //查询redis中是否存在对应缓存
         //若不存在，则先查数据库，数据库没有再打出null
         if (StrUtil.isBlank(json)) {
+            //调用传入的回调函数查数据
             R r = dbFallback.apply(id);
             if (r == null) {
-                //设置空值
+                //设置空值，因为这是工具类泛型方法，不确定是否结合了布隆过滤器，所以存空值
                 stringRedisTemplate.opsForValue().set(key, "", RedisConstants.CACHE_NULL_TTL, TimeUnit.MINUTES);
                 return null;
             }else {
-                //把查到的放到缓存中去，进行序列化
+                //把查到的放到缓存中去，进行序列化，这里调用的就是存对象序列化后入缓存的方法
                 this.setWithLogicalExpire(key,r,time,timeUnit);
             }
 
@@ -104,10 +105,11 @@ public class CacheClient {
         //3,缓存过期，需要缓存重建
         String lock = lockprifix + id;
         boolean flag = tryLock(lock);
-        //获取锁失败，返回错误
+        //获取锁失败，递归重试
         if (!flag) {
             return quaryWithLogicalExpire(keyprifix, lockprifix, type, id, dbFallback, time, timeUnit);
         }
+        //如果有 1000 个请求同时发现缓存过期，都要串行等待,因此要用线程池，开一个线程异步重建
         //获取锁成功，从线程池中调用线程，缓存重建，向CACHE_REBUILD_EXECUTOR线程池对象中提交任务
         CACHE_REBUILD_EXECUTOR.submit(() -> {
             try {

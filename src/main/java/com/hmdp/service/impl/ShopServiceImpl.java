@@ -61,13 +61,13 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
 //        Shop shop = cacheClient.quaryWithLogicalExpire(RedisConstants.CACHE_SHOP_KEY,RedisConstants.LOCK_SHOP_KEY, Shop.class, id,this::getById,RedisConstants.CACHE_SHOP_TTL, TimeUnit.MINUTES);
         //布隆过滤器结合逻辑过期时间解决缓存穿透，布隆过滤器说不存在一定不存在，即数据库里也没有，布隆过滤器说存在不一定存在，走逻辑过期时间判断
-
         RBloomFilter<Long> bloomFilter = redissonClient.getBloomFilter("bloom:shop");
         if (!bloomFilter.contains(id)){
             return Result.fail("店铺不存在");
         }
         //走逻辑过期时间查询缓存
-        Shop shop = cacheClient.quaryWithLogicalExpire(RedisConstants.CACHE_SHOP_KEY,RedisConstants.LOCK_SHOP_KEY, Shop.class, id,this::getById,RedisConstants.CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        Shop shop = cacheClient.quaryWithLogicalExpire
+                (RedisConstants.CACHE_SHOP_KEY,RedisConstants.LOCK_SHOP_KEY, Shop.class, id,this::getById,RedisConstants.CACHE_SHOP_TTL, TimeUnit.MINUTES);
 
 //        // ========== 3. 压测环境改成直接查数据库 ==========
 //        Shop shop = this.getById(id);
