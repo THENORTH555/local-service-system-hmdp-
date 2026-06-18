@@ -75,7 +75,7 @@ public class BlogController {
     public Result queryBlogByUserId(
             @RequestParam(value = "current", defaultValue = "1") Integer current,
             @RequestParam("id") Long id) {
-        // 根据用户查询
+        // 根据用户查询，这里用mp给的分页对象以及query方法查询用户博客，前端实现滚动分页逻辑，查询发布过的博客
         Page<Blog> page = blogService.query()
                 .eq("user_id", id).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 获取当前页数据

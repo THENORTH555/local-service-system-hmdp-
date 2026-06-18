@@ -2,6 +2,7 @@ package com.hmdp.controller;
 
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.StrUtil;
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
@@ -11,10 +12,12 @@ import com.hmdp.service.IUserInfoService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.ognl.Token;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
 /**
@@ -63,9 +66,17 @@ public class UserController {
      * @return 无
      */
     @PostMapping("/logout")
-    public Result logout(){
+    public Result logout(HttpServletRequest  request){
+        log.info("登出");
 
-        return Result.fail("功能未完成");
+
+       String token = request.getHeader("authorization");
+        // 如果前端传的 Token 带 "Bearer " 前缀，需要去掉
+        if (StrUtil.isNotBlank(token) && token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+    return userService.logout(token);
+
     }
 
     @GetMapping("/me")

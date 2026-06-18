@@ -3,6 +3,7 @@ package com.hmdp.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
@@ -64,7 +65,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             log.error("手机号格式错误：{}", phone); // 新增：日志打印
             return Result.fail("手机号格式错误");
         }
-        //生成验证码
+        //生成验证码，RandomUtil来自hutool工具库
         String code = RandomUtil.randomNumbers(6);
         //保存验证码到redis，key为手机号，value为验证码,过期时间设置为两分钟
         stringRedisTemplate.opsForValue().set(LOGIN_CODE_KEY + phone, code, LOGIN_CODE_TTL, TimeUnit.MINUTES);
@@ -105,8 +106,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             user = createUserwithPhone(phone);
             log.info("创建新用户：{}", user.getId()); // 新增：日志打印
         }
+        //这一段用于新登录时，删除旧token，以确保新登录的A用户能顶号
+    String oldtokenkey = USER_TOKEN_KEY + user.getId();
+    String oldtoken = stringRedisTemplate.opsForValue().get(oldtokenkey);
+    if (StrUtil.isNotBlank(oldtoken)) {
+        String oldTokenDataKey = LOGIN_USER_KEY + oldtoken;
+        Boolean deleted = stringRedisTemplate.delete(oldTokenDataKey);
+        log.info("删除旧 Token 数据：{}，结果：{}", oldTokenDataKey, deleted);
 
-        //随机生成 token
+        stringRedisTemplate.delete(oldtokenkey);
+        log.info("删除了旧token：{}", oldtoken);
+    }
+        //java.util。UUID中的randomUUID()随机生成 token
         String token = UUID.randomUUID().toString();
         log.info("生成了token：{}", token); // 替换System.out为日志，更规范
         System.out.println("生成了token：" + token); // 保留原有打印，确保你能看到
@@ -117,7 +128,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         //把用户信息保存到redis中
         UserDTO userDTO = new UserDTO();
         BeanUtils.copyProperties(user, userDTO);
-//这一段是把userDTO转为map，其中每一个属性以及其对应的值都用setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString()))转成string-string类型的键值对，这里token是redis中的key，value是userdto转成的哈希表，而哈希表中userdto的属性是key，属性对应的值是value，相当于嵌套键值对
+//这一段是把userDTO转为map，其中每一个属性以及其对应的值都用setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString()))
+// 转成string-string类型的键值对，这里token是redis中的key，value是userdto转成的哈希表，而哈希表中userdto的属性是key，属性对应的值是value，相当于嵌套键值对
         Map<String, Object> usermap = BeanUtil.beanToMap(userDTO, new HashMap<>(),
                 CopyOptions.create()
                         .setIgnoreNullValue(true)
@@ -128,6 +140,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         stringRedisTemplate.opsForHash().putAll(tokenkey, usermap);
         //设置token有效期
         stringRedisTemplate.expire(tokenkey, LOGIN_USER_TTL, TimeUnit.MINUTES);
+
+        String userkey = RedisConstants.USER_TOKEN_KEY + user.getId();
+        stringRedisTemplate.opsForValue().set(userkey, token);
 
         log.info("用户{}登录成功，Token已存入Redis，有效期{}分钟", user.getId(), LOGIN_USER_TTL); // 新增：日志打印
         return Result.ok(token); // 关键：确保这行执行到，返回Token
@@ -186,6 +201,27 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         //返回count
         return Result.ok(count);
     }
+
+    @Override
+    public Result logout(String token) {
+        //校验token是否为空
+        if (StrUtil.isBlank(token)) {
+            return Result.fail("token为空,无法登出");
+        }
+        Boolean isdeleted = stringRedisTemplate.delete(RedisConstants.LOGIN_USER_KEY + token);
+        if (!isdeleted) {
+            return Result.fail("登出失败，token过期或不存在");
+        }
+        UserDTO userDTO = UserHolder.getUser();
+        if (userDTO != null){
+            //上面删除登录tokenkey,下面删除用户tokenkey
+            stringRedisTemplate.delete(RedisConstants.USER_TOKEN_KEY + userDTO.getId());
+        }
+        UserHolder.removeUser();
+
+        return Result.ok("登出成功");
+    }
+
 
     //创建用户的方法
     private User createUserwithPhone(String phone) {

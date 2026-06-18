@@ -61,7 +61,7 @@ public class MvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(new RefreshTokenInterceptor(stringRedisTemplate))
                 .order(0)
                 .addPathPatterns("/**");
-        // 2. 登录拦截器：拦截需要登录的接口（你之前完全没写这个！）
+        // 2. 登录拦截器：拦截需要登录的接口
         registry.addInterceptor(new LoginInterceptor())
                 .order(1)
                 .excludePathPatterns(
