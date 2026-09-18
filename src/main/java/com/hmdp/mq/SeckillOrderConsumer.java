@@ -9,6 +9,7 @@ import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
@@ -32,7 +33,7 @@ public class SeckillOrderConsumer {
     private IVoucherOrderService voucherOrderService;
 
  @RabbitListener(queues = "seckill.queue2")
-    public void listenseckillOrder(VoucherOrder voucherOrder, Channel channel, @Header long deliveryTag){
+    public void listenseckillOrder(VoucherOrder voucherOrder, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag){
     Long userId = voucherOrder.getUserId();
     //用redisson中的Rlock接口创建一把锁实例
      RLock lock = redissonClient.getLock("order:" + userId);

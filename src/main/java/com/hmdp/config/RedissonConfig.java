@@ -21,7 +21,7 @@ public class RedissonConfig {
         // 创建配置
         Config config = new Config();
         // 设置Redis地址, 密码为123456
-        config.useSingleServer().setAddress("redis://192.168.220.128:6379").setPassword("123456");
+        config.useSingleServer().setAddress("redis://192.168.126.128:6379").setPassword("123456");
         // 创建RedissonClient对象
         return Redisson.create(config);
     }

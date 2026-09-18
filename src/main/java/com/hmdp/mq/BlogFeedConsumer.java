@@ -9,6 +9,7 @@ import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
@@ -35,7 +36,7 @@ public class BlogFeedConsumer {
     private StringRedisTemplate stringRedisTemplate;
 
     @RabbitListener(queues = "blog.queue")
-    public void listen(Long blogid, Channel channel, @Header long deliveryTag){
+    public void listen(Long blogid, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag){
         try {
 
 

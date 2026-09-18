@@ -96,9 +96,12 @@ public class CacheClient {
         }
         //1命中，需要先判断过期时间，因为用逻辑过期方法不需要考虑缓存穿透问题，所以不需要存空白值
         com.hmdp.entity.RedisData redisData = JSONUtil.toBean(json, com.hmdp.entity.RedisData.class);
+        if (redisData == null) {
+            return null;
+        }
         R  r = JSONUtil.toBean((JSONObject) redisData.getData(), type);
         LocalDateTime islate = redisData.getExpireTime();
-        if (islate.isAfter(LocalDateTime.now())) {
+        if (islate != null && islate.isAfter(LocalDateTime.now())) {
             //未过期，直接返回缓存数据,需要进行序列化
             return r;
         }
