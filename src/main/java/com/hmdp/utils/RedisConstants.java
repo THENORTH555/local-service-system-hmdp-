@@ -4,6 +4,7 @@ public class RedisConstants {
     public static final String LOGIN_CODE_KEY = "login:code:";
     public static final Long LOGIN_CODE_TTL = 2L;
     public static final String LOGIN_USER_KEY = "login:token:";
+    public static final String TOKEN_BLACK_KEY = "login:black:";
     public static final Long LOGIN_USER_TTL = 36000L;
 
     public static final Long CACHE_NULL_TTL = 2L;
@@ -22,4 +23,6 @@ public class RedisConstants {
     public static final String CACHE_SHOP_TYPE_KEY = "shop:type:";
     // 新增：用户ID到Token的映射（用于单点登录）
     public static final String USER_TOKEN_KEY = "user:token:";
+    public static final String SHOP_DELETE_QUEUE = "shop.delete";
+
 }

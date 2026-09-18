@@ -111,9 +111,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     String oldtoken = stringRedisTemplate.opsForValue().get(oldtokenkey);
     if (StrUtil.isNotBlank(oldtoken)) {
         String oldTokenDataKey = LOGIN_USER_KEY + oldtoken;
+        Long oldTtl = stringRedisTemplate.getExpire(oldTokenDataKey);
+
+        log.info("找到旧token:{}, oldTokenDataKey:{}, oldTtl:{}", oldtoken, oldTokenDataKey, oldTtl);
+        if(oldTtl!=null&&oldTtl>0){
+            String blackkey = RedisConstants.TOKEN_BLACK_KEY + oldTokenDataKey;
+            stringRedisTemplate.opsForValue().set(blackkey,"1",oldTtl,TimeUnit.SECONDS);
+            log.info("旧token{}成功加入黑名单,blackkey:{},剩余ttl:{}秒",oldtoken,blackkey,oldTtl);
+        }else {
+            log.info("旧token已经过期，无需加入黑名单");
+        }
+        //删除旧会话key
+
         Boolean deleted = stringRedisTemplate.delete(oldTokenDataKey);
         log.info("删除旧 Token 数据：{}，结果：{}", oldTokenDataKey, deleted);
-
         stringRedisTemplate.delete(oldtokenkey);
         log.info("删除了旧token：{}", oldtoken);
     }
@@ -208,10 +219,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         if (StrUtil.isBlank(token)) {
             return Result.fail("token为空,无法登出");
         }
-        Boolean isdeleted = stringRedisTemplate.delete(RedisConstants.LOGIN_USER_KEY + token);
-        if (!isdeleted) {
-            return Result.fail("登出失败，token过期或不存在");
+
+        //9.18新增token黑名单逻辑
+        String loginblackkey = RedisConstants.LOGIN_USER_KEY +token;
+        Long ttl =  stringRedisTemplate.getExpire(loginblackkey);
+        if(ttl!=null&&ttl>0) {
+        String blackkey = RedisConstants.TOKEN_BLACK_KEY+token;
+        stringRedisTemplate.opsForValue().set(blackkey,"1",ttl,TimeUnit.SECONDS);
+
         }
+        stringRedisTemplate.delete(loginblackkey);
+
+//        Boolean isdeleted = stringRedisTemplate.delete(RedisConstants.LOGIN_USER_KEY + token);
+//        if (!isdeleted) {
+//            return Result.fail("登出失败，token过期或不存在");
+//        }
         UserDTO userDTO = UserHolder.getUser();
         if (userDTO != null){
             //上面删除登录tokenkey,下面删除用户tokenkey

@@ -7,6 +7,7 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.toolkit.BeanUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.RedisData;
 import com.hmdp.entity.Shop;
@@ -19,6 +20,7 @@ import com.hmdp.utils.RedisConstants;
 import org.redisson.api.RBloomFilter;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.RedisClient;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.geo.Distance;
 import org.springframework.data.geo.GeoResult;
 import org.springframework.data.geo.GeoResults;
@@ -52,6 +54,13 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     @Resource
     private RedissonClient redissonClient;
+
+    @Resource
+    private RabbitTemplate rabbitTemplate;
+
+    @Resource
+    private LoadingCache<Long, Shop> shopLocalCache;
+
     @Override
     public Result querybyID(Long id) {
         //解决缓存穿透走quaryWithPassThrough方法                                                      //this::getById是id2->getbyId(id2)的美化语句，这里主要是得传入一个能进行根据id查询数据库的函数，返回数据
@@ -61,6 +70,13 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
 //        Shop shop = cacheClient.quaryWithLogicalExpire(RedisConstants.CACHE_SHOP_KEY,RedisConstants.LOCK_SHOP_KEY, Shop.class, id,this::getById,RedisConstants.CACHE_SHOP_TTL, TimeUnit.MINUTES);
         //布隆过滤器结合逻辑过期时间解决缓存穿透，布隆过滤器说不存在一定不存在，即数据库里也没有，布隆过滤器说存在不一定存在，走逻辑过期时间判断
+
+        // 1.优先查询Caffeine本地二级缓存
+        Shop shopcache = shopLocalCache.getIfPresent(id);
+        if (shopcache != null) {
+            return Result.ok(shopcache);
+        }
+
         RBloomFilter<Long> bloomFilter = redissonClient.getBloomFilter("bloom:shop");
         if (!bloomFilter.contains(id)){
             return Result.fail("店铺不存在");
@@ -226,7 +242,10 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         if (id == null){
             return Result.fail("店铺不存在");
         }
-        stringRedisTemplate.delete(RedisConstants.CACHE_SHOP_KEY + id);
+        // 2.清除当前实例Caffeine本地缓存
+        shopLocalCache.invalidate(id);
+        //交给mq异步删除
+            rabbitTemplate.convertAndSend("shop.direct","delete",id);
         return Result.ok();
     }
 

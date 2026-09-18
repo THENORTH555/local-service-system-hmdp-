@@ -52,6 +52,14 @@ public class RefreshTokenInterceptor implements HandlerInterceptor {
             return true;
         }
         log.info("token不为空，开始查询Redis");
+        //9.18新增，黑名单校验
+        String blackKey = RedisConstants.TOKEN_BLACK_KEY + token;
+        if(Boolean.TRUE.equals(stringRedisTemplate.hasKey(blackKey))){
+            log.info("token命中黑名单，账号已下线");
+            response.setStatus(401);
+            response.getWriter().write("账号已下线，请重新登录");
+            return false;
+        }
 
         // 4. 拼接Redis key，查询用户信息
         String key = RedisConstants.LOGIN_USER_KEY + token;
