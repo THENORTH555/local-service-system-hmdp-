@@ -1,6 +1,7 @@
 package com.hmdp.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.VoucherOrder;
@@ -10,9 +11,13 @@ import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisWorker;
 import com.hmdp.utils.UserHolder;
+import com.rabbitmq.client.MessageProperties;
 import lombok.SneakyThrows;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageBuilder;
+import org.springframework.amqp.core.MessagePropertiesBuilder;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -246,7 +251,12 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         voucherOrder.setVoucherId(voucherId);
         voucherOrder.setUserId(userId);
 
-        rabbitTemplate.convertAndSend("seckill.direct", "seckill.order", voucherOrder);
+
+        // 使用 MessagePostProcessor 设置消息TTL，Spring自动序列化对象
+        rabbitTemplate.convertAndSend("seckill.direct", "seckill.order", voucherOrder, msg -> {
+            msg.getMessageProperties().setExpiration("1800000");
+            return msg;
+        });
         return Result.ok(orderId);
     }
 //    public Result seckillVoucher(Long voucherId) {
